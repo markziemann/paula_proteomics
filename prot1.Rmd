@@ -1,0 +1,181 @@
+---
+title: "Protein analysis for Paula Version 1"
+author: "Burnet Bioinformatics"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    fig_width: 7
+    fig_height: 7
+theme: cosmo
+---
+
+## Load some libraries
+
+```{r,libs}
+
+library("limma")
+library("kableExtra")
+library("vioplot")
+library("beeswarm")
+library("gplots")
+
+```
+
+## Intro
+
+We want to properly annotate these proteins with names and conduct differential
+expression irrespective of the strain/isolate.
+
+## Read in data
+
+It requires a lot of cleaning.
+
+```{r,read1}
+
+x <- read.table("20240611_192029_P24_0717_E1_PaluaE_Updated_LC_ATCC_Report.tsv",sep="\t",header=TRUE)
+
+head(x,2)
+
+q <- x[,c(1:6,15:ncol(x))]
+
+head(q,2)
+
+q2 <- q[grep("UPI",q[,1]),]
+
+# clean
+colnames(q2) <- gsub("_2024042",".raw",colnames(q2))
+colnames(q2) <- gsub(".raw"," ",colnames(q2))
+colnames(q2) <- gsub("_E1_"," ",colnames(q2))
+colnames(q2) <- str_sub(colnames(q2),4,)
+colnames(q2) <- gsub("..AST1_JS_20240405_P24_0717 "," ",colnames(q2))
+colnames(q2) <- gsub("PG.","PG ",colnames(q2))
+colnames(q2) <- sapply(strsplit(colnames(q2)," "),"[[",2)
+
+dim(q2)
+
+```
+
+## Attach some functional information from Uniprot
+
+Got annotations from UniProt batch tool.
+
+```{r,id}
+
+y <- read.csv("idmapping_2024_06_27.tsv.gz",sep="\t",header=TRUE)
+y2 <- y[!duplicated(y$From), ]
+m <- merge(y2,q2,by.x="From",by.y="ProteinGroups",all.y=TRUE)
+rownames(m) <- paste(m$ProteinAccessions,m$info)
+m2 <- m[,grep("S",colnames(m))]
+
+head(m2)
+
+```
+
+## Curate the sample sheet
+
+Define the control and lactate groups and the strain.
+
+```{r,ss}
+
+ss <- read.table("samplesheet.tsv",header=TRUE,row.names=1)
+
+ss$LA <- factor(grepl("LA",ss$condition))
+
+ss$strain <- factor(grepl("_D_",ss$condition))
+
+ss
+
+```
+
+## MDS analysis
+
+This helps to see the similarities and differences between samples.
+
+```{r,mds1}
+
+mycols <- gsub("1","lightblue",gsub("2","pink",as.character(as.numeric(ss$LA))))
+
+plot(cmdscale(dist(t(m2))), xlab="Coordinate 1", ylab="Coordinate 2",
+  type = "p",bty="n",pch=20-as.numeric(ss$strain), cex=4,
+  col=mycols)
+
+text(cmdscale(dist(t(m2))), labels=colnames(m2) )
+
+legend("topright", legend=c("lac", "ctl"),
+       fill=c("pink","lightblue"),  cex=1)
+
+mtext("Circle='A', Diamond='D'")
+
+```
+
+## Differential expression
+
+Here we are using limma, which was originally designed for microarray data, but
+should work okay if the data are normally distributed.
+
+Cancel the effect of strain.
+
+```{r,limma}
+
+design <- model.matrix(~ ss$strain + ss$LA)
+design
+
+fit.reduced <- lmFit(m2,design)
+fit.reduced <- eBayes(fit.reduced)
+summary(decideTests(fit.reduced))
+dm <- topTable(fit.reduced,coef=3, number = Inf)
+
+head(dm,20)
+
+```
+
+## Some charts
+
+Volcano chart
+
+```{r,volcano1}
+
+TOT=nrow(dm)
+sig <- subset(dm,adj.P.Val<0.05)
+SIG=nrow(sig)
+UP=nrow(subset(sig,logFC>0))
+DN=nrow(subset(sig,logFC>0))
+HEADER=paste(TOT,"total proteins,",SIG,"@5% FDR,",UP,"up,",DN,"down")
+dm2 <- dm[!is.na(dm$P.Value),]
+
+plot(dm2$logFC,-log10(dm2$P.Value),pch=19,
+  xlab="Log2 fold change", ylab="p-value")
+
+points(sig$logFC,-log10(sig$P.Value),col="red",pch=19)
+mtext(HEADER)
+abline(v=0,lty=2,lwd=2,col="blue")
+
+
+```
+
+Heatmap of top hits
+
+```{r,heat1}
+
+top <- rownames(head(dm,20))
+
+mx <- m2[rownames(m2) %in% top,]
+
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 25)
+
+heatmap.2(as.matrix(mx),scale="row",margin=c(5,25),cexRow=1,trace="none",cexCol=1,
+    ColSideColors=mycols ,  col=my_palette, main="top 20 proteins")
+
+```
+
+
+## Session information
+
+```{r,session}
+
+sessionInfo()
+
+```
