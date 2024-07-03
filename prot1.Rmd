@@ -443,6 +443,9 @@ message("Remove rows with any NA values")
 x3 <- x3[apply(x3,1,function(x) { length(which(is.na(x)))<1 } ),]
 dim(x3)
 
+# remove human proteins with "Cont_" in the name
+x3 <- x3[grep("Cont_",rownames(x3),invert=TRUE),]
+
 write.xlsx(m3, "quantifications_liners.xlsx")
 
 ```
