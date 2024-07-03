@@ -32,6 +32,8 @@ library("stringr")
 We want to properly annotate these proteins with names and conduct differential
 expression irrespective of the strain/isolate.
 
+# Lactobacillus crispatus
+
 ## Read in data
 
 It requires a lot of cleaning.
@@ -355,7 +357,8 @@ plot(euler(v1),quantities = TRUE)
 
 Make a scatter plotr of the ranks.
 
-While the results are not completely concoordant between the 
+While the results are not completely concoordant between the strains,
+there is a lot of similarity.
 
 ```{r,comparison2}
 
@@ -406,10 +409,332 @@ message(paste("discordant proteins:",discordant))
 
 ```
 
-## Now look at the L. iners data
+# Lactobacillus crispatus
+
+## Read in data
 
 ```{r,load2}
 
+x2 <- read.table("20240611_164801_P24_0717_E1_PaluaE_Updated_Report_iners_only_V2.tsv",
+  header=TRUE,fill=TRUE,sep="\t",quote = "")
+
+rownames(x2) <- paste(x2$PG.ProteinGroups,x2$PG.ProteinDescriptions,x2$PG.Genes,sep="|")
+
+head(x2,2)
+
+x3 <- x2[,15:22]
+
+colnames(x3) <- sapply(strsplit(gsub("_E1_"," ",colnames(x3))," "),"[[",2)
+colnames(x3) <- substr(colnames(x3), 0, 3)
+
+head(x3,2)
+
+x3 <- log(x3)
+
+head(x3,2)
+
+message("Number of NA values in each row")
+table(unname(apply(x3,1,function(x) { length(which(is.na(x))) } )))
+
+message("Number of NA values in each column")
+apply(x3,2,function(x) { length(which(is.na(x))) } )
+
+message("Remove rows with any NA values")
+x3 <- x3[apply(x3,1,function(x) { length(which(is.na(x)))<1 } ),]
+dim(x3)
+
+write.xlsx(m3, "quantifications_liners.xlsx")
+
+```
+
+## Curate the sample sheet
+
+```{r,ss2}
+
+ss2 <- read.table("samplesheet2.tsv")
+
+ss2 %>% kbl(caption = "Sample sheet for iners") %>% kable_paper("hover", full_width = F)
+
+```
+
+## MDS analysis
+
+This helps to see the similarities and differences between samples.
+
+```{r,mds2}
+
+mycols <- gsub("1","lightblue",gsub("2","pink",as.character(as.numeric(ss2$LA)+1)))
+
+plot(cmdscale(dist(t(x3))), xlab="Coordinate 1", ylab="Coordinate 2",
+  type = "p",bty="n",pch=20-(as.numeric(ss2$strain)+1), cex=4,
+  col=mycols,main="L. iners")
+
+text(cmdscale(dist(t(x3))), labels=colnames(x3) )
+
+legend("bottomright", legend=c("lac", "ctl"),
+       fill=c("pink","lightblue"),  cex=1)
+
+mtext("Circle='S/7', Diamond='A'")
+
+```
+
+## Differential expression 4 - effect of lactic acid, both strains
+
+Here we are using limma, which was originally designed for microarray data, but
+should work okay if the data are normally distributed.
+
+We are looking for proteins whose abundance is changed by the treatment: lactic acid versus control.
+Cancel the effect of strain.
+
+The full differential expression results are available as a Excel file called "differentialexpression.xlsx".
+
+```{r,limma4}
+
+design <- model.matrix(~ ss2$strain + ss2$LA)
+design
+
+fit.reduced <- lmFit(x3,design)
+fit.reduced <- eBayes(fit.reduced)
+summary(decideTests(fit.reduced))
+dm <- topTable(fit.reduced,coef=3, number = Inf)
+
+head(dm,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis") %>% kable_paper("hover", full_width = F)
+
+dm4 <- dm
+write.xlsx(dm4, "differentialexpression4.xlsx")
+
+```
+
+Volcano chart
+
+```{r,volcano4}
+
+TOT=nrow(dm)
+sig <- subset(dm,adj.P.Val<0.05)
+SIG=nrow(sig)
+UP=nrow(subset(sig,logFC>0))
+DN=nrow(subset(sig,logFC<0))
+HEADER=paste(TOT,"total proteins,",SIG,"@5% FDR,",UP,"up,",DN,"down")
+dm <- dm[!is.na(dm$P.Value),]
+
+plot(dm$logFC,-log10(dm$P.Value),pch=19,
+  xlab="Log2 fold change", ylab="p-value")
+
+points(sig$logFC,-log10(sig$P.Value),col="red",pch=19)
+mtext(HEADER)
+abline(v=0,lty=2,lwd=2,col="blue")
+
+```
+
+Heatmap of top hits
+
+```{r,heat4}
+
+top <- rownames(head(dm,40))
+
+mx <- x3[rownames(x3) %in% top,]
+
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 25)
+
+heatmap.2(as.matrix(mx),scale="row",margin=c(5,28),cexRow=1,trace="none",cexCol=1,
+    ColSideColors=mycols ,  col=my_palette, main="top 20 proteins")
+
+```
+
+## Differential expression 5 - effect of lactic acid in strain S (7)
+
+Strain S/7 samples only.
+
+```{r,limma5}
+
+sx2 <- ss2[which(ss2$strain=="FALSE"),]
+
+x32 <- x3[,which(colnames(x3) %in% rownames(sx2))]
+
+design <- model.matrix(~ sx2$LA)
+design
+
+fit.reduced <- lmFit(x32,design)
+fit.reduced <- eBayes(fit.reduced)
+summary(decideTests(fit.reduced))
+dm5 <- topTable(fit.reduced,coef=2, number = Inf)
+
+head(dm5,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis in strain S") %>% kable_paper("hover", full_width = F)
+
+write.xlsx(dm5, "differentialexpression5.xlsx")
+
+```
+
+Volcano chart
+
+```{r,volcano5}
+
+TOT=nrow(dm5)
+sig <- subset(dm5,adj.P.Val<0.05)
+SIG=nrow(sig)
+UP=nrow(subset(sig,logFC>0))
+DN=nrow(subset(sig,logFC<0))
+HEADER=paste(TOT,"total proteins,",SIG,"@5% FDR,",UP,"up,",DN,"down")
+
+mycols <- gsub("1","lightblue",gsub("2","pink",as.character(as.numeric(sx2$LA)+1)))
+
+
+plot(dm5$logFC,-log10(dm5$P.Value),pch=19,
+  xlab="Log2 fold change", ylab="p-value")
+
+points(sig$logFC,-log10(sig$P.Value),col="red",pch=19)
+mtext(HEADER)
+abline(v=0,lty=2,lwd=2,col="blue")
+
+```
+
+Heatmap of top hits
+
+```{r,heat5}
+
+top <- rownames(head(dm5,40))
+
+mx <- x32[rownames(x32) %in% top,]
+
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 25)
+
+heatmap.2(as.matrix(mx),scale="row",margin=c(5,28),cexRow=1,trace="none",cexCol=1,
+    ColSideColors=mycols ,  col=my_palette, main="top 20 proteins in strain S/7")
+
+```
+
+## Differential expression 6 - effect of lactic acid in strain A
+
+Strain A samples only.
+
+```{r,limma6}
+
+sx3 <- ss2[which(ss2$strain=="TRUE"),]
+
+x33 <- x3[,which(colnames(x3) %in% rownames(sx3))]
+dim(x33)
+
+design <- model.matrix(~ sx3$LA)
+design
+
+fit.reduced <- lmFit(x33,design)
+fit.reduced <- eBayes(fit.reduced)
+summary(decideTests(fit.reduced))
+dm6 <- topTable(fit.reduced,coef=2, number = Inf)
+
+head(dm6,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis in strain A") %>% kable_paper("hover", full_width = F)
+
+write.xlsx(dm6, "differentialexpression6.xlsx")
+
+```
+
+Volcano chart
+
+```{r,volcano6}
+
+TOT=nrow(dm6)
+sig <- subset(dm6,adj.P.Val<0.05)
+SIG=nrow(sig)
+UP=nrow(subset(sig,logFC>0))
+DN=nrow(subset(sig,logFC<0))
+HEADER=paste(TOT,"total proteins,",SIG,"@5% FDR,",UP,"up,",DN,"down")
+
+mycols <- gsub("1","lightblue",gsub("2","pink",as.character(as.numeric(sx3$LA)+1)))
+
+plot(dm6$logFC,-log10(dm6$P.Value),pch=19,
+  xlab="Log2 fold change", ylab="p-value")
+
+points(sig$logFC,-log10(sig$P.Value),col="red",pch=19)
+mtext(HEADER)
+abline(v=0,lty=2,lwd=2,col="blue")
+
+```
+
+Heatmap of top hits
+
+```{r,heat6}
+
+top <- rownames(head(dm6,40))
+
+mx <- x33[rownames(x33) %in% top,]
+
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 25)
+
+heatmap.2(as.matrix(mx),scale="row",margin=c(5,28),cexRow=1,trace="none",cexCol=1,
+    ColSideColors=mycols ,  col=my_palette, main="top 20 proteins in strain A")
+
+```
+
+## Comparison
+
+Make a Euler diagram of the genes.
+
+```{r,comparison3}
+
+dm5up <- rownames(subset(dm5,adj.P.Val<0.05 & logFC > 0))
+dm5dn <- rownames(subset(dm5,adj.P.Val<0.05 & logFC < 0))
+
+dm6up <- rownames(subset(dm6,adj.P.Val<0.05 & logFC > 0))
+dm6dn <- rownames(subset(dm6,adj.P.Val<0.05 & logFC < 0))
+
+v1 <- list("Strain S up"=dm5up, "Strain S down"=dm5dn,
+  "Strain A up"=dm6up,"Strain A down"=dm6dn)
+
+plot(euler(v1),quantities = TRUE)
+
+```
+
+Make a scatter plotr of the ranks.
+
+While the results are not completely concoordant between the strains,
+there is a lot of similarity.
+
+```{r,comparison4}
+
+mg <- merge(dm5,dm6,by=0)
+rownames(mg) <- mg$Row.names
+mg <- mg[,c("t.x","t.y")]
+head(mg)
+
+plot(mg,pch=19,cex=0.4,main="limma t-stat",xlab="Strain S/7",ylab="strain A")
+abline(h=0,v=0,col="blue",lty=2,lwd=2)
+
+mylm <- lm(mg)
+abline(mylm,lty=2,col="red",lwd=2)
+
+mylm
+
+rmg <- apply(mg,2, function(x) {
+  rnk <- rank(x)
+  NUMNEG=length(which(x<0))
+  rnk <- rnk - NUMNEG
+  return(rnk)
+})
+
+plot(rmg,pch=19,cex=0.4,main="rank of limma t-stat",xlab="Strain D",ylab="strain A")
+abline(h=0,v=0,col="blue",lty=2,lwd=2)
+
+mylm <- lm(as.data.frame(rmg))
+
+abline(mylm,lty=2,col="red",lwd=2)
+
+mylm
+
+tr <- nrow(subset(mg,t.x>0 & t.y>0))
+br <- nrow(subset(mg,t.x>0 & t.y<0))
+tl <- nrow(subset(mg,t.x<0 & t.y>0))
+bl <- nrow(subset(mg,t.x<0 & t.y<0))
+
+tr
+br
+tl
+bl
+
+concordant = tr + bl
+message(paste("concordant proteins:",concordant))
+
+discordant = br + tl
+message(paste("discordant proteins:",discordant))
 
 ```
 
