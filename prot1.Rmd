@@ -69,6 +69,8 @@ head(q2,6) %>% kbl(caption = "after cleaning it looks like this") %>% kable_pape
 Now we can fetch annotations from UniProt batch tool.
 The full data set is available as an Excel file called "quantifications.xlsx".
 
+Also need to log transform the data in order to get sane values of logFC.
+
 ```{r,id}
 
 y <- read.csv("idmapping_2024_06_27.tsv.gz",sep="\t",header=TRUE)
@@ -83,6 +85,13 @@ m3 <- m2
 m3$UniParc <- rownames(m3)
 m3 <- m3[,c(ncol(m3),1:ncol(m3)-1)]
 write.xlsx(m2, "quantifications.xlsx")
+
+message("number of NA values per row")
+table(unname(apply(m2,1,function(x) { length(which(is.na(x))) } )))
+
+m2 <- m2[!is.na(rowSums(m2)),]
+
+m2 <- log(m2)
 
 ```
 
@@ -116,7 +125,7 @@ plot(cmdscale(dist(t(m2))), xlab="Coordinate 1", ylab="Coordinate 2",
 
 text(cmdscale(dist(t(m2))), labels=colnames(m2) )
 
-legend("topright", legend=c("lac", "ctl"),
+legend("right", legend=c("lac", "ctl"),
        fill=c("pink","lightblue"),  cex=1)
 
 mtext("Circle='A', Diamond='D'")
@@ -394,6 +403,13 @@ message(paste("concordant proteins:",concordant))
 
 discordant = br + tl
 message(paste("discordant proteins:",discordant))
+
+```
+
+## Now look at the L. iners data
+
+```{r,load2}
+
 
 ```
 
