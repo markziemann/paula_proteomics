@@ -32,6 +32,22 @@ library("stringr")
 We want to properly annotate these proteins with names and conduct differential
 expression irrespective of the strain/isolate.
 
+We are running 6 different protein expression contrasts.
+All of these are looking at the effect of lactic acid,
+but with different inclusion.
+
+1. L. crispatus both strains
+
+2. L. crispatus strain D
+
+3. L. crispatus strain A
+
+4. L. iners both strains
+
+5. L. iners strain S/7
+
+6. L. iners strain A
+
 # Lactobacillus crispatus
 
 ## Read in data
@@ -69,7 +85,7 @@ head(q2,6) %>% kbl(caption = "after cleaning it looks like this") %>% kable_pape
 ## Attach some functional information from Uniprot
 
 Now we can fetch annotations from UniProt batch tool.
-The full data set is available as an Excel file called "quantifications.xlsx".
+The full data set is available as an Excel file called "quantifications_crisp.xlsx".
 
 Also need to log transform the data in order to get sane values of logFC.
 
@@ -86,7 +102,7 @@ head(m2,6) %>% kbl(caption = "Now the proteins have a proper name (if one is ava
 m3 <- m2
 m3$UniParc <- rownames(m3)
 m3 <- m3[,c(ncol(m3),1:ncol(m3)-1)]
-write.xlsx(m2, "quantifications.xlsx")
+write.xlsx(m2, "quantifications_crisp.xlsx")
 
 message("number of NA values per row")
 table(unname(apply(m2,1,function(x) { length(which(is.na(x))) } )))
@@ -159,7 +175,7 @@ head(dm,50) %>% kbl(caption = "Top 50 proteins after differential analysis") %>%
 dmo <- dm
 dmo$UniParc <- rownames(dmo)
 dmo <- dmo[,c(ncol(dmo),1:ncol(dmo)-1)]
-write.xlsx(dmo, "differentialexpression1.xlsx")
+write.xlsx(dmo, "differentialexpression1_lcrisp_bothstrains.xlsx")
 
 ```
 
@@ -225,7 +241,7 @@ head(dm2,50) %>% kbl(caption = "Top 50 proteins after differential analysis in s
 dm2o <- dm2
 dm2o$UniParc <- rownames(dm2o)
 dm2o <- dm2o[,c(ncol(dm2o),1:ncol(dm2o)-1)]
-write.xlsx(dm2o, "differentialexpression2.xlsx")
+write.xlsx(dm2o, "differentialexpression2_lcrisp_strainD.xlsx")
 
 ```
 
@@ -294,7 +310,7 @@ head(dm3,50) %>% kbl(caption = "Top 50 proteins after differential analysis in s
 dm3o <- dm3
 dm3o$UniParc <- rownames(dm3o)
 dm3o <- dm3o[,c(ncol(dm3o),1:ncol(dm3o)-1)]
-write.xlsx(dm3o, "differentialexpression3.xlsx")
+write.xlsx(dm3o, "differentialexpression3_lcrisp_strainA.xlsx")
 
 ```
 
@@ -375,6 +391,8 @@ abline(mylm,lty=2,col="red",lwd=2)
 
 mylm
 
+cor.test(mg[,1],mg[,2])
+
 rmg <- apply(mg,2, function(x) {
   rnk <- rank(x)
   NUMNEG=length(which(x<0))
@@ -390,6 +408,8 @@ mylm <- lm(as.data.frame(rmg))
 abline(mylm,lty=2,col="red",lwd=2)
 
 mylm
+
+cor.test(rmg[,1],rmg[,2])
 
 tr <- nrow(subset(mg,t.x>0 & t.y>0))
 br <- nrow(subset(mg,t.x>0 & t.y<0))
@@ -409,7 +429,7 @@ message(paste("discordant proteins:",discordant))
 
 ```
 
-# Lactobacillus crispatus
+# Lactobacillus iners
 
 ## Read in data
 
@@ -504,7 +524,7 @@ dm <- topTable(fit.reduced,coef=3, number = Inf)
 head(dm,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis") %>% kable_paper("hover", full_width = F)
 
 dm4 <- dm
-write.xlsx(dm4, "differentialexpression4.xlsx")
+write.xlsx(dm4, "differentialexpression4_liners_bothstrains.xlsx")
 
 ```
 
@@ -564,7 +584,7 @@ dm5 <- topTable(fit.reduced,coef=2, number = Inf)
 
 head(dm5,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis in strain S") %>% kable_paper("hover", full_width = F)
 
-write.xlsx(dm5, "differentialexpression5.xlsx")
+write.xlsx(dm5, "differentialexpression5_liners_strainS7.xlsx")
 
 ```
 
@@ -627,7 +647,7 @@ dm6 <- topTable(fit.reduced,coef=2, number = Inf)
 
 head(dm6,50) %>% kbl(caption = "L. iners Top 50 proteins after differential analysis in strain A") %>% kable_paper("hover", full_width = F)
 
-write.xlsx(dm6, "differentialexpression6.xlsx")
+write.xlsx(dm6, "differentialexpression6_liners_strainA.xlsx")
 
 ```
 
@@ -707,6 +727,8 @@ abline(mylm,lty=2,col="red",lwd=2)
 
 mylm
 
+cor.test(mg[,1],mg[,2])
+
 rmg <- apply(mg,2, function(x) {
   rnk <- rank(x)
   NUMNEG=length(which(x<0))
@@ -722,6 +744,8 @@ mylm <- lm(as.data.frame(rmg))
 abline(mylm,lty=2,col="red",lwd=2)
 
 mylm
+
+cor.test(rmg[,1],rmg[,2])
 
 tr <- nrow(subset(mg,t.x>0 & t.y>0))
 br <- nrow(subset(mg,t.x>0 & t.y<0))
